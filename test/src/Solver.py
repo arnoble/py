@@ -21,10 +21,17 @@ class Solver:
 class DBconn:
     def connect(self):
         return pyodbc.connect('DSN=newSp;PWD=ragtinmor')
+
+
 #####
 # DERP index
+#
+# Clock is driven by daily arrival or productPrices
+# ... if a new day arrives, compute new portValue as at last close and calc the index
+# ... then accumulate any coupons for the current positions
+# ... then do any new trades on/before thisDate
+#
 #####
-
 #
 #init
 #
@@ -92,17 +99,26 @@ indexValue        = 1.0
 portValue         = 0.0
 previousDate      = firstDate
 previousPortValue = 0.0
+#
+#  Clock is driven by daily arrival or productPrices
+#
 for productPrice in productPrices:
     # init
-    thisDate             = productPrice.Date
-    thisPid              = productPrice.ProductId
-
-    # calc index
+    thisDate = productPrice.Date
+    #
+    # ... if a new day arrives, compute new portValue as at last close and calc the index
+    #
     if thisDate != previousDate:
-        # accumulate trades
+        # add any new trades prior to thisDate
         while tradeIndex < numTrades and trades[tradeIndex].Date < thisDate:
             tradePid      = trades[tradeIndex].ProductId
             tradePosition = trades[tradeIndex].Position
+            # ...init in case trade date is before firstPriceDate
+            if tradePid not in currentBids:
+                currentBids[tradePid] = 0.0
+            if tradePid not in currentAsks:
+                currentAsks[tradePid] = 0.0
+            # ... init new positions
             if tradePosition > 0:
                 previousPortValue += tradePosition * currentAsks[tradePid]
             else:
@@ -114,34 +130,36 @@ for productPrice in productPrices:
             tradeIndex = tradeIndex + 1
 
 
-
-
         # calc portValue
         portValue = sumCoupons
         for pid,pos in currentPositions.items():
-            if pid in currentBids:
-                portValue += currentBids[pid] * pos
+            portValue += currentBids[pid] * pos
         # calc index
-        if thisDate != firstDate:
-            indexValue  *= portValue/previousPortValue
-            print("Index:",previousDate,indexValue)
-            #
-            # save new index value
-            #
-            # cursor.execute("insert into products(id, name) values (?, ?)", 'pyodbc', 'awesome library')
-            # cnxn.commit()
-        previousPortValue  = portValue
+        indexValue  *= portValue/previousPortValue
+        print("Index:",previousDate,indexValue)
+        #
+        # save new index value
+        #
+        # cursor.execute("insert into products(id, name) values (?, ?)", 'pyodbc', 'awesome library')
+        # cnxn.commit()
+        #
+        # init for next time
         previousDate       = thisDate
+        previousPortValue  = portValue
 
-    # use this price
-    currentBids[thisPid] = productPrice.Bid
-    currentAsks[thisPid] = productPrice.Ask
 
-    # accumulate coupons
+
+    # accumulate any new coupons up to this date for existing positions
     # DOME: ccy conversion
     while couponIndex< numCoupons and [couponIndex].Date <= thisDate:
         sumCoupons += currentPositions[thisPid] * coupons[couponIndex].Amount
         couponIndex = couponIndex + 1
+
+
+    # update for this price
+    thisPid              = productPrice.ProductId
+    currentBids[thisPid] = productPrice.Bid
+    currentAsks[thisPid] = productPrice.Ask
 
 
     #
