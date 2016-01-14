@@ -29,6 +29,8 @@ class DBconn:
     def connect(self):
         ## return pyodbc.connect('DSN=newSp;PWD=ragtinmor')
         #return pyodbc.connect('DRIVER={MySQL ODBC 3.51 Driver};Login Prompt=False;User ID=root;Password=ragtinmor;Data Source=localhost;Database=sp')
+        # pyodbc problem: negative doubles are not returned at all! so switched to MySQL odbc.connector
+        #  ... http://dev.mysql.com/doc/connector-python/en/
         return mysql.connector.connect(user='anoble', password='Ragtin_Mor14_Lucian',
                               host='166.63.0.149',
                               database='sp')
@@ -69,6 +71,7 @@ for a in sys.argv:
 if len(sys.argv)<2:
     print("Usage: loginEmail")
     exit()
+userEmail = sys.argv[1]
 q = "select UserId  from user where email = '"+sys.argv[1]+"'"
 cursor.execute(q)
 userId = cursor.fetchone()
@@ -113,15 +116,30 @@ if not productPrices:
 # get coupons
 #
 couponIndex = 0
-q = "select pc.* from productcoupons pc join trade using (productid) where InvestorId = "+format(userId)+" and pc.Date >= '"+format(firstDate)+"' order by Date,ProductId"
+q = "select distinct pc.ProductId,pc.Date,pc.Amount*IssuePrice Amount,pc.ccy from productcoupons pc join trade using (productid) join product using (productid) where InvestorId = "\
+    +format(userId)+" and pc.Date >= '"+format(firstDate)+"' order by Date,ProductId"
 cursor.execute(q)
 coupons = cursor.fetchall()
 if not coupons:
     print("NO coupon DATA")
 numCoupons = len(coupons)
 
+#
+# update strings
+#
+strategyIds          = {}
+strategyIds['DERP@cubeinvesting.com'] = 1007;
+strategyIds['DEIP@cubeinvesting.com'] = 1008;
+if userEmail not in strategyIds:
+    print("NO strategy for",userEmail)
+    exit()
 
-
+strategyId          = strategyIds[userEmail]
+updateWeightsString = " insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "
+updateLevelsString  = " insert into indexstrategylevel (IndexStrategyId,Date,Level) values "
+cursor.execute("delete from indexstrategylevel   where indexstrategyid="+format(strategyId))
+cursor.execute("delete from indexstrategyweights where indexstrategyid="+format(strategyId))
+cnxn.commit()
 
 #
 # compute index
@@ -147,7 +165,7 @@ for productPrice in productPrices:
     #
     if thisDate != previousDate:
         # ... accumulate any coupons ON_OR_BEFORE previousDate for previousPositions
-        while couponIndex < numCoupons and [couponIndex].Date <= previousDate:
+        while couponIndex < numCoupons and coupons[couponIndex].Date <= previousDate:
             thisPid     = coupons[couponIndex].ProductId
             if thisPid in previousPositions:
                 thisCoupon  = previousPositions[thisPid] * coupons[couponIndex].Amount
@@ -198,47 +216,53 @@ for productPrice in productPrices:
                 thisCoupon = sumCoupons[pid]
             # ... productReturn = returnSinceLastUsingMIDS - midToBidIfSold - midToAskIfBought + coupons
             if positionChange>0:
-                # crap
-                # thisReturn  = (currentMid       + thisCoupon)/previousAsks[pid]
-                thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
+                # reference BIDs only
+                # thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
+                thisReturn  = (currentMid       + thisCoupon)/previousAsks[pid]
                 numPositions += 1
             elif positionChange<0:
-                # crap
-                # thisReturn  = (currentBids[pid] + thisCoupon)/previousMid
-                thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
+                # reference BIDs only
+                # thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
+                thisReturn  = (currentBids[pid] + thisCoupon)/previousMid
                 numPositions += 1
             elif pos>0:
-                # crap
-                # thisReturn  = (currentMid       + thisCoupon)/previousMid
-                thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
+                # reference BIDs only
+                # thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
+                thisReturn  = (currentMid       + thisCoupon)/previousMid
                 numPositions += 1
             else:
                 thisReturn  = 0.0
 
 
-            portReturn  += thisReturn                #  previousDate >= datetime.date(2016,1,8)
+            portReturn  += thisReturn                #  previousDate >= datetime.date(2015,4,21)
         # calc index
         if isFirstDate:
-            isFirstDate       = False
+            isFirstDate          = False
         else:
             portReturn  /= numPositions
             indexValue  *= portReturn
+            updateWeightsString += ","
+            updateLevelsString  += ","
 
         #
         # save new index value
         #
         print("Index:",previousDate,indexValue)
-        # cursor.execute("insert into products(id, name) values (?, ?)", 'pyodbc', 'awesome library')
-        # cnxn.commit()
-        #
+        weightsString =  "("+format(strategyId)+",20,'"+format(previousDate)+"',"+format(numPositions)+")"
+        updateWeightsString += weightsString
+        levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(indexValue)+")"
+        updateLevelsString  += levelsString
+        cursor.execute("insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "+weightsString+";")
+        cursor.execute("insert into indexstrategylevel   (IndexStrategyId,Date,Level)               values "+levelsString+";")
+        cnxn.commit()
 
         # init for next time
         # ... track positions
         for pid,pos in currentPositions.items():
             previousPositions[pid] = currentPositions[pid]
         # ... zero coupons
-        for x in sumCoupons:
-            sumCoupons[x] = 0.0
+        for pid,y in sumCoupons.items():
+            sumCoupons[pid] = 0.0
         # ... track bids, asks
         for pid,x in currentBids.items():
             previousBids[pid] = x
@@ -264,3 +288,15 @@ for productPrice in productPrices:
     # for matured products, get maturityPayoff and DateMatured
     #
 
+
+#updateWeightsString += ";"
+#updateLevelsString  += ";"
+#print(updateLevelsString)
+#print(updateWeightsString)
+
+
+# cursor.execute(updateLevelsString,multi=True)
+# cursor.execute(updateWeightsString,multi=True)
+cnxn.commit()
+cursor.close()
+cnxn.close()
