@@ -26,14 +26,15 @@ class Solver:
 
 
 class DBconn:
-    def connect(self):
+    def connect(self,dbServer):
         ## return pyodbc.connect('DSN=newSp;PWD=ragtinmor')
         #return pyodbc.connect('DRIVER={MySQL ODBC 3.51 Driver};Login Prompt=False;User ID=root;Password=ragtinmor;Data Source=localhost;Database=sp')
         # pyodbc problem: negative doubles are not returned at all! so switched to MySQL odbc.connector
         #  ... http://dev.mysql.com/doc/connector-python/en/
-        return mysql.connector.connect(user='anoble', password='Ragtin_Mor14_Lucian',
-                              host='166.63.0.149',
-                              database='sp')
+        if dbServer == 'spCloud':
+            return mysql.connector.connect(user='anoble', password='Ragtin_Mor14_Lucian', host='166.63.0.149', database='sp')
+        else:
+            return mysql.connector.connect(user='root', password='ragtinmor', host='localhost', database='sp')
 #####
 # DERP index
 #
@@ -64,14 +65,15 @@ class DBconn:
 #
 #init
 #
-cnxn   = DBconn().connect()
-cursor = cnxn.cursor(named_tuple=True)  # or user dictionary=True
 for a in sys.argv:
     print("Argv:",a)
-if len(sys.argv)<2:
-    print("Usage: loginEmail")
+if len(sys.argv)<3:
+    print("Usage: loginEmail dbServer")
     exit()
 userEmail = sys.argv[1]
+dbServer  = sys.argv[2]
+cnxn   = DBconn().connect(dbServer)
+cursor = cnxn.cursor(named_tuple=True)  # or user dictionary=True
 q = "select UserId  from user where email = '"+sys.argv[1]+"'"
 cursor.execute(q)
 userId = cursor.fetchone()
@@ -111,6 +113,7 @@ productPrices = cursor.fetchall()
 if not productPrices:
     print("NO price DATA")
     exit()
+numPprices = len(productPrices)
 
 #
 # get coupons
@@ -157,13 +160,15 @@ isFirstDate          = True
 #
 #  Clock is driven by arrival (not necessarily daily) of a date-ordered price for 1 product
 #
+ppCounter=0
 for productPrice in productPrices:
+    ppCounter = ppCounter + 1
     thisDate = productPrice.Date
     #
     # ... if a new day arrives, compute portValue as at previousDate and update the index
     #    ... indexReturn is mean(positionReturns) which implies daily rebalancing to equal weights
     #
-    if thisDate != previousDate:
+    if thisDate != previousDate or ppCounter == numPprices:
         # ... accumulate any coupons ON_OR_BEFORE previousDate for previousPositions
         while couponIndex < numCoupons and coupons[couponIndex].Date <= previousDate:
             thisPid     = coupons[couponIndex].ProductId
