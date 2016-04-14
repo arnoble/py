@@ -3,6 +3,10 @@ import math
 import pyodbc
 import mysql.connector
 import datetime
+# if run from command line
+# if __name__ == "__main__":
+#    import sys
+
 #
 # date from data    previousDate >= datetime.date(2015,11,10)
 #
@@ -68,10 +72,13 @@ class DBconn:
 for a in sys.argv:
     print("Argv:",a)
 if len(sys.argv)<3:
-    print("Usage: loginEmail dbServer")
+    print("Usage: loginEmail dbServer debug")
     exit()
 userEmail = sys.argv[1]
 dbServer  = sys.argv[2]
+debug     = False
+if len(sys.argv)>3:
+    debug = True
 cnxn   = DBconn().connect(dbServer)
 cursor = cnxn.cursor(named_tuple=True)  # or user dictionary=True
 q = "select UserId  from user where email = '"+sys.argv[1]+"'"
@@ -225,16 +232,22 @@ for productPrice in productPrices:
                 # thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
                 thisReturn  = (currentMid       + thisCoupon)/previousAsks[pid]
                 numPositions += 1
+                if debug:
+                    print("   BUY ProductId:",pid,"Return:",thisReturn,"PreviousAsk:",previousAsks[pid],"CurrentMid:",currentMid,"Coupons:",thisCoupon)
             elif positionChange<0:
                 # reference BIDs only
                 # thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
                 thisReturn  = (currentBids[pid] + thisCoupon)/previousMid
                 numPositions += 1
+                if debug:
+                    print("      SELL ProductId:",pid,"Return:",thisReturn,"PreviousMid:",previousMid,"CurrentBid:",currentBids[pid],"Coupons:",thisCoupon)
             elif pos>0:
                 # reference BIDs only
                 # thisReturn  = (currentBids[pid]       + thisCoupon)/previousBids[pid]
                 thisReturn  = (currentMid       + thisCoupon)/previousMid
                 numPositions += 1
+                if debug:
+                    print("         ProductId:",pid,"Return:",thisReturn,"PreviousMid:",previousMid,"CurrentMid:",currentMid,"Coupons:",thisCoupon)
             else:
                 thisReturn  = 0.0
 
