@@ -170,15 +170,15 @@ numCoupons = len(coupons)
 #
 # update strings
 #
-strategyIds          = {}
-strategyIds['DERP@cubeinvesting.com'] = 1007;           # userId = 137  is DERP@cubeinvesting.com
-strategyIds['DEIP@cubeinvesting.com'] = 1008;
-strategyIds['CautiousIncome@jbrearley.com'] = 1010;
-if userEmail not in strategyIds:
+q = "select IndexStrategyId from user where email='"+userEmail+"'"
+cursor.execute(q)
+results = cursor.fetchall()
+if not results:
     print("NO strategy for",userEmail)
     exit()
 
-strategyId          = strategyIds[userEmail]
+strategyId = results[0][0]
+
 updateWeightsString = " insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "
 updateLevelsString  = " insert into indexstrategylevel (IndexStrategyId,Date,Level) values "
 cursor.execute("delete from indexstrategylevel   where indexstrategyid="+format(strategyId))
