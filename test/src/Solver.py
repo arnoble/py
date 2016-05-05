@@ -179,8 +179,6 @@ if not results:
 
 strategyId = results[0][0]
 
-updateWeightsString = " insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "
-updateLevelsString  = " insert into indexstrategylevel (IndexStrategyId,Date,Level) values "
 cursor.execute("delete from indexstrategylevel   where indexstrategyid="+format(strategyId))
 cursor.execute("delete from indexstrategyweights where indexstrategyid="+format(strategyId))
 cnxn.commit()
@@ -203,7 +201,8 @@ weightChanges        = {}
 previousUnits        = {}
 currentUnits         = {}
 sumCoupons           = {}
-indexValue           = 1000.0
+startIndexValue      = 1000.0
+indexValue           = startIndexValue
 previousDate         = firstDate
 isFirstDate          = True
 #
@@ -278,7 +277,7 @@ for productPrice in productPrices:
             previousMid      = (previousBids[pid] + previousAsks[pid])/2.0
             thisIndexValue  += previousUnits[pid] * previousMid
         if isFirstDate:
-            indexValue = 1000.0
+            indexValue = startIndexValue
         else:
             indexValue = thisIndexValue
 
@@ -304,21 +303,18 @@ for productPrice in productPrices:
         for pid,pos in currentUnits.items():
             currentUnits[pid] = currentUnits[pid] * slippage
 
-        # calc index
-        if isFirstDate:
-            isFirstDate          = False
-        else:
-            updateWeightsString += ","
-            updateLevelsString  += ","
-
         #
         # save new index value
         #
-        print("Index:",previousDate,indexValue)
+        if isFirstDate:
+            isFirstDate          = False
+            thisIndexValue       = startIndexValue
+        else:
+            thisIndexValue       = indexValue
+
+        print("Index:",previousDate,thisIndexValue)
         weightsString =  "("+format(strategyId)+",20,'"+format(previousDate)+"',"+format(len(currentUnits))+")"
-        updateWeightsString += weightsString
-        levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(indexValue)+")"
-        updateLevelsString  += levelsString
+        levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(thisIndexValue)+")"
         cursor.execute("insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "+weightsString+";")
         cursor.execute("insert into indexstrategylevel   (IndexStrategyId,Date,Level)               values "+levelsString+";")
         cnxn.commit()
