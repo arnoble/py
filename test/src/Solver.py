@@ -109,6 +109,33 @@ if not userId:
 userId = userId.UserId
 
 
+#
+# get info on matured products...in the end we just add MaturityPayoffs to the main sql below
+# get productIds in trade table
+#
+#q = "select distinct ProductId from trade where investorid=" + format(userId) + " order by ProductId"
+#cursor.execute(q)
+#allProductIds = cursor.fetchall()
+#if not allProductIds:
+#    print("NO trade productIds")
+#    exit()
+#
+# get matured products and payoffs
+#
+#allPidsStr = {str(row[0]) for row in allProductIds}
+#q = "select ProductId,DateMatured,MaturityPayoff from product where productid in (" + ','.join(allPidsStr) + ") order by ProductId"
+#cursor.execute(q)
+#allMaturities = cursor.fetchall()
+
+#
+# get maturity dates
+#
+q = "select ProductId,DateMatured Date,MaturityPayoff from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
+cursor.execute(q)
+allMaturities = cursor.fetchall()
+productMaturityDate    = {}
+for x in allMaturities:
+    productMaturityDate[x.ProductId] = x.Date
 
 #
 # get trades in date,Position order so that SELLS come before BUYS
@@ -143,7 +170,9 @@ if len(problemTrades)>0:
 #       vector productPrices(), date-ordered, selects all rows in 'productprices' table where ProductId's in 'trade' table for this 'InvestorId'
 productPriceIndex = 0
 q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=0 "
-q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "+" order by Date,ProductId"
+q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "
+q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
+q += " order by Date,ProductId"
 cursor.execute(q)
 productPrices = cursor.fetchall()
 if not productPrices:
@@ -339,14 +368,22 @@ for productPrice in productPrices:
 
     # ... otherwise just record bid/ask for this productId
     thisPid              = productPrice.ProductId
-    if productPrice.Bid > 0.0:
-        currentBids[thisPid] = productPrice.Bid
-        if thisPid not in previousBids:
-            previousBids[thisPid] = productPrice.Bid
-    if productPrice.Ask > 0.0:
-        currentAsks[thisPid] = productPrice.Ask
-        if thisPid not in previousAsks:
-            previousAsks[thisPid] = productPrice.Ask
+    if thisPid not in productMaturityDate or thisDate <= productMaturityDate[thisPid]:
+        if productPrice.Bid > 0.0:
+            currentBids[thisPid] = productPrice.Bid
+            if thisPid not in previousBids:
+                previousBids[thisPid] = productPrice.Bid
+            elif abs((previousBids[thisPid] - productPrice.Bid)/previousBids[thisPid]) > 0.3 :
+                print("Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"previousBid:",previousBids[thisPid])
+                exit()
+
+        if productPrice.Ask > 0.0:
+            currentAsks[thisPid] = productPrice.Ask
+            if thisPid not in previousAsks:
+                previousAsks[thisPid] = productPrice.Ask
+            elif abs((previousAsks[thisPid] - productPrice.Ask)/previousAsks[thisPid]) > 0.3 :
+                print("Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"previousAsk:",previousAsks[thisPid])
+                exit()
 
 
     #
