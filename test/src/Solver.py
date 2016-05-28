@@ -275,9 +275,6 @@ for productPrice in productPrices:
             else:
                 currentPosition = 0.0
             newPosition = currentPosition + tradePosition
-            if newPosition>1 or newPosition<0:
-                print("Illegal Position ",tradePid,"on",tradeDate)
-                exit()
             # ... update positions
             currentPositions[tradePid]   = newPosition
             tradeIndex = tradeIndex + 1
@@ -286,6 +283,9 @@ for productPrice in productPrices:
         #               currentWeights(productid) recalculated from cumTrades, so as to sum to 1.0
         sumPositions = 0.0
         for pid,pos in currentPositions.items():
+            if pos>1 or pos<0:
+                print("Illegal Position ",tradePid,"on",tradeDate)
+                exit()
             sumPositions += currentPositions[pid]
         for pid,pos in currentPositions.items():
             currentWeights[pid] = currentPositions[pid] / sumPositions
