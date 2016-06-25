@@ -358,10 +358,10 @@ for productPrice in productPrices:
         for pid,y in sumCoupons.items():
             sumCoupons[pid] = 0.0
         # ... track bids, asks
-        for pid,x in currentBids.items():
-            previousBids[pid] = x
-        for pid,x in currentAsks.items():
-            previousAsks[pid] = x
+        #for pid,x in currentBids.items():
+        #    previousBids[pid] = x
+        #for pid,x in currentAsks.items():
+        #    previousAsks[pid] = x
         # ... track date
         previousDate       = thisDate
 
@@ -370,22 +370,28 @@ for productPrice in productPrices:
     thisPid              = productPrice.ProductId
     if thisPid not in productMaturityDate or thisDate <= productMaturityDate[thisPid]:
         if productPrice.Bid > 0.0:
-            currentBids[thisPid] = productPrice.Bid
-            if thisPid not in previousBids:
-                previousBids[thisPid] = productPrice.Bid
-            elif abs((previousBids[thisPid] - productPrice.Bid)/previousBids[thisPid]) > 0.3 :
+            #currentBids[thisPid] = productPrice.Bid
+            #if thisPid not in previousBids:
+            #    previousBids[thisPid] = productPrice.Bid
+            #elif abs((previousBids[thisPid] - productPrice.Bid)/previousBids[thisPid]) > 0.3 :
+            #    print("Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"previousBid:",previousBids[thisPid])
+            #    exit()
+            if thisPid in previousBids and abs((previousBids[thisPid] - productPrice.Bid)/previousBids[thisPid]) > 0.3 :
                 print("Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"previousBid:",previousBids[thisPid])
                 exit()
+            previousBids[thisPid] = productPrice.Bid
 
         if productPrice.Ask > 0.0:
-            currentAsks[thisPid] = productPrice.Ask
-            if thisPid not in previousAsks:
-                previousAsks[thisPid] = productPrice.Ask
-            elif abs((previousAsks[thisPid] - productPrice.Ask)/previousAsks[thisPid]) > 0.3 :
+            #currentAsks[thisPid] = productPrice.Ask
+            #if thisPid not in previousAsks:
+            #    previousAsks[thisPid] = productPrice.Ask
+            #elif abs((previousAsks[thisPid] - productPrice.Ask)/previousAsks[thisPid]) > 0.3 :
+            #    print("Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"previousAsk:",previousAsks[thisPid])
+            #    exit()
+            if thisPid in previousAsks and abs((previousAsks[thisPid] - productPrice.Ask)/previousAsks[thisPid]) > 0.3 :
                 print("Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"previousAsk:",previousAsks[thisPid])
                 exit()
-
-
+            previousAsks[thisPid] = productPrice.Ask
     #
     # for matured products, get maturityPayoff and DateMatured
     #
