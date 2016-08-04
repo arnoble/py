@@ -295,7 +295,7 @@ for productPrice in productPrices:
             if productCcy[pid] != strategyCcy:
                 productMid *= crossRates[pid][previousDate]
             thisAssetValue  += productUnits[pid] * productMid
-        if fundUnits <= 0:
+        if fundUnits <= 0 or thisAssetValue<=0.0:
             thisNav   = 1.0
             fundUnits = 1.0
         else:
