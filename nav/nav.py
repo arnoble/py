@@ -276,7 +276,7 @@ for productPrice in productPrices:
             thisPid     = coupons[couponIndex].ProductId
             if thisPid in productUnits:
                 thisCoupon  = coupons[couponIndex].Amount
-                thisCcy     = coupons[couponIndex].Ccy
+                thisCcy     = coupons[couponIndex].ccy
                 if productCcy[thisPid] != strategyCcy:
                     thisCoupon *= crossRates[thisPid][previousDate]
                 if thisPid not in sumCoupons:
@@ -379,8 +379,8 @@ for pid,pos in productUnits.items():
     productMid      = (productBids[pid] + productAsks[pid])/2.0
     if productCcy[pid] != strategyCcy:
         productMid *= crossRates[pid][previousDate]
-    thisWeight  = thisAssetValue / (productUnits[pid] * productMid)
-    q = "update trade set Position=" + format(thisWeight) + " where ProductId = "+format(pid)+" limit 1"
+    thisWeight  = (productUnits[pid] * productMid) / thisAssetValue
+    q = "update trade set Position=" + format(thisWeight) + " where ProductId = "+format(pid)+" and InvestorId="+format(userId)+" limit 1"
     cursor.execute(q)
 
 
