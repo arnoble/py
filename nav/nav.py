@@ -43,7 +43,7 @@ class DBconn:
 # OVERVIEW
 #
 #  0. DATA
-#       'trade' table records trades
+#       'trade' table records trades: date,ProductId,ProductIsaPrice(1 for Money, 0 for Products),NumUnits (use any value for Money trades),Money
 #
 #  1. INIT
 #       vector trades(),        date-ordered, selects all rows in 'trade' table for this 'InvestorId'
@@ -59,12 +59,8 @@ class DBconn:
 #               IndexReturn = closingNAV/openingNAV
 #               process trades(productId) from trades to t-1
 #               -> CashAsset trades are subscriptions/redemptions create/redeem FundUnits at NAV
-#               -> Product   trades credit/debug CashAsset/ProductUnits
+#               -> Product   trades credit/debit CashAsset/ProductUnits
 #
-#               cashflow = sumOverProductId(previousUnits*theseCoupons)
-#               indexValue = sumOverProductId(previousUnits*previousMids)
-#               currentWeights(productid) recalculated from cumTrades, so as to sum to 1.0
-#               weightChanges  = currentWeights - previousWeights
 #       4. calc/save current momeyWeights
 #
 #####
