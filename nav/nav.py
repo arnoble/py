@@ -135,7 +135,16 @@ cnxn.commit()
 #cursor.execute(q)
 #allMaturities = cursor.fetchall()
 
-
+#
+# get lastdatadate
+#
+q = "select max(LastDataDate) LastDataDate from cashflows "
+cursor.execute(q)
+any = cursor.fetchall()
+if not any:
+    print("NO LastDataDate")
+    exit()
+lastDataDate = any[0].LastDataDate
 
 
 #
@@ -162,7 +171,7 @@ for x in any:
         if not any:
             print("NO underlyingId for ",x.ccy + strategyCcy)
             exit()
-        q = "select * from prices where Underlyingid=" + any.UnderlyingId +" order by date"
+        q = "select * from prices where Underlyingid=" + str(any[0].UnderlyingId) +" order by date"
         cursor.execute(q)
         any = cursor.fetchall()
         if not any:
@@ -207,9 +216,9 @@ if len(problemTrades)>0:
 #  create productPrices(), date-ordered, selects all rows in 'productprices' table where ProductId's in 'trade' table for this 'InvestorId'
 #   ... adding values from prices table if ProductIsaPrice=1
 productPriceIndex = 0
-q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=0 "
+q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and pp.Date <= '"+format(lastDataDate)+"' and t.ProductIsaPrice=0 "
 q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "
-q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
+q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where ProductIsaPrice=0 and investorid=" + format(userId) + ")"
 q += " order by Date,ProductId"
 cursor.execute(q)
 productPrices = cursor.fetchall()
@@ -289,6 +298,9 @@ for productPrice in productPrices:
         for pid,pos in productUnits.items():
             productMid      = (productBids[pid] + productAsks[pid])/2.0
             if productCcy[pid] != strategyCcy:
+                if previousDate not in crossRates[pid]:
+                    print(previousDate,"not in crossRates for",pid)
+                    exit(111)
                 productMid *= crossRates[pid][previousDate]
             thisAssetValue  += productUnits[pid] * productMid
         if fundUnits <= 0 or thisAssetValue<=0.0:
@@ -325,8 +337,10 @@ for productPrice in productPrices:
             #        ... trades assumed executed on precedingDate
             #        ... raise ERROR if no pricing
             if tradePid not in productBids or  tradePid not in productAsks:
-                print("No prices for",tradePid,"on",tradeDate)
-                exit()
+                print("No prices for",tradePid,"on",tradeDate,"assuming 100.00")
+                productBids[tradePid] = 100.00
+                productAsks[tradePid] = 100.00
+                # exit()
             # ... update positions
             if tradePid not in productUnits:
                 productUnits[tradePid] = 0.0
@@ -358,7 +372,7 @@ for productPrice in productPrices:
         if productPrice.Bid > 0.0:
             if thisPid in productBids and abs((productBids[thisPid] - productPrice.Bid)/productBids[thisPid]) > 0.3 :
                 print("Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"productBid:",productBids[thisPid])
-                exit()
+                exit(112)
             productBids[thisPid] = productPrice.Bid
 
         if productPrice.Ask > 0.0:
