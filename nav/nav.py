@@ -8,7 +8,7 @@ import datetime
 #    import sys
 
 #
-# date from data    previousDate >= datetime.date(2015,11,10)
+# date from data    previousDate >= datetime.date(2016,10,03)
 #
 #
 #
@@ -89,7 +89,7 @@ if len(sys.argv)>3:
     debug = True
 cnxn   = DBconn().connect(dbServer)
 cursor = cnxn.cursor(named_tuple=True)  # or user dictionary=True
-q = "select UserId  from user where email = '"+sys.argv[1]+"'"
+q = "select UserId  from user where email = '"+userEmail+"'"
 cursor.execute(q)
 userId = cursor.fetchone()
 if not userId:
@@ -103,89 +103,78 @@ userId = userId.UserId
 #
 q = "select u.IndexStrategyId,s.ccy from user u join indexstrategy s using (indexstrategyid) where email='"+userEmail+"'"
 cursor.execute(q)
-results = cursor.fetchall()
+results = cursor.fetchone()
 if not results:
     print("NO strategy for",userEmail)
     exit()
 
-strategyId  = results[0][0]
-strategyCcy = results[0][1]
+strategyId  = results.IndexStrategyId
+strategyCcy = results.ccy
 
 cursor.execute("delete from indexstrategylevel   where indexstrategyid="+format(strategyId))
 cursor.execute("delete from indexstrategyweights where indexstrategyid="+format(strategyId))
 cnxn.commit()
 
 
-
-#
-# get info on matured products...in the end we just add MaturityPayoffs to the main sql below
-# get productIds in trade table
-#
-#q = "select distinct ProductId from trade where investorid=" + format(userId) + " order by ProductId"
-#cursor.execute(q)
-#allProductIds = cursor.fetchall()
-#if not allProductIds:
-#    print("NO trade productIds")
-#    exit()
-#
-# get matured products and payoffs
-#
-#allPidsStr = {str(row[0]) for row in allProductIds}
-#q = "select ProductId,DateMatured,MaturityPayoff from product where productid in (" + ','.join(allPidsStr) + ") order by ProductId"
-#cursor.execute(q)
-#allMaturities = cursor.fetchall()
-
 #
 # get lastdatadate
 #
 q = "select max(LastDataDate) LastDataDate from cashflows "
 cursor.execute(q)
-any = cursor.fetchall()
+any = cursor.fetchone()
 if not any:
     print("NO LastDataDate")
     exit()
-lastDataDate = any[0].LastDataDate
+lastDataDate = any.LastDataDate
 
 
 #
-# get product static data eg ccy,maturity dates
+# get any product maturity dates
 #
-q = "select ProductId,DateMatured Date,MaturityPayoff from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
+q  = "select ProductId,DateMatured Date,MaturityPayoff from product where MaturityPayoff!=0 and productid in "
+q += "(select distinct ProductId from trade where investorid=" + format(userId) + ")"
 cursor.execute(q)
 allMaturities = cursor.fetchall()
 productMaturityDate    = {}
 for x in allMaturities:
     productMaturityDate[x.ProductId] = x.Date
 
+#
+# get any product crossRates
+#
 q = "select ProductId,ccy from product where productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
 cursor.execute(q)
 any = cursor.fetchall()
 productCcy             = {}
 crossRates             = {}
+productCrossRate       = {}
 for x in any:
     productCcy[x.ProductId] = x.ccy
     if x.ccy != strategyCcy:
-        q = "select UnderlyingId from underlying where name='" + x.ccy + strategyCcy +"'"
-        cursor.execute(q)
-        any = cursor.fetchall()
-        if not any:
-            print("NO underlyingId for ",x.ccy + strategyCcy)
-            exit()
-        q = "select * from prices where Underlyingid=" + str(any[0].UnderlyingId) +" order by date"
-        cursor.execute(q)
-        any = cursor.fetchall()
-        if not any:
-            print("NO prices for ",x.ccy + strategyCcy)
-            exit()
-        crossRates[x.ProductId] = {}
-        for y in any:
-            crossRates[x.ProductId][y.Date] = y.Price
+        crossRateName = x.ccy + strategyCcy
+        productCrossRate[x.ProductId] = crossRateName
+        if crossRateName not in crossRates:
+            q = "select UnderlyingId from underlying where name='" + crossRateName +"'"
+            cursor.execute(q)
+            any = cursor.fetchone()
+            if not any:
+                print("NO underlyingId for ",crossRateName)
+                exit()
+            q = "select * from prices where Underlyingid=" + str(any.UnderlyingId) +" order by date"
+            cursor.execute(q)
+            any = cursor.fetchall()
+            if not any:
+                print("NO prices for ",crossRateName)
+                exit()
+            crossRates[crossRateName] = {}
+            for y in any:
+                crossRates[crossRateName][y.Date] = y.Price
 
 
 #
-# get trades in date,Position order so that SELLS come before BUYS
+# get trades
+# create trades() in date,Position order so that SELLS come before BUYS
 #
-# vector trades(),        date-ordered, selects all rows in 'trade' table for this 'InvestorId'
 tradeIndex = 0
 q = "select * from trade where investorid=" + format(userId) + " order by Date,Position,ProductId"
 cursor.execute(q)
@@ -194,17 +183,15 @@ if not trades:
     print("NO trade DATA")
     exit()
 #for (trade_date,pos) in cursor:
-#  print("{}, was traded on {:%d %b %Y}".format(
-#    pos, trade_date))
-
+#  print("{}, was traded on {:%d %b %Y}".format(pos, trade_date))
 firstDate = trades[0].Date
 numTrades = len(trades)
 
 
 #
-# get productPrices
-#
-# DOME: if 'trade' has a ProductIsaPrice=1 row we should BEWARE as there could also be a row with the same (real product) ProductId but ProductIsaPrice=0
+# detect any problem entries in sp.trade table
+#  - to record cash in 'sp.trade' table we set ProductId=130 and ProductIsaPrice=1
+#  - so we need to check no REAL product with 1d=130 has been added tp sp.trade table
 q = "select * from trade t where InvestorId = "+format(userId)+" and t.ProductIsaPrice=0 and ProductId in (130)"
 cursor.execute(q)
 problemTrades = cursor.fetchall()
@@ -213,7 +200,8 @@ if len(problemTrades)>0:
     exit()    #  ... leave for now as we only use UnderlyingId=130 for cash
 
 #
-#  create productPrices(), date-ordered, selects all rows in 'productprices' table where ProductId's in 'trade' table for this 'InvestorId'
+# get productPrices
+# create productPrices(), date-ordered, selects all rows in 'productprices' table where ProductId's in 'trade' table for this 'InvestorId'
 #   ... adding values from prices table if ProductIsaPrice=1
 productPriceIndex = 0
 q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and pp.Date <= '"+format(lastDataDate)+"' and t.ProductIsaPrice=0 "
@@ -231,8 +219,7 @@ numPprices = len(productPrices)
 
 #
 # get coupons
-#
-#       vector coupons(),       date-ordered, selects all rows in 'productcoupons' table where ProductId's in 'trade' table for this 'InvestorId'
+# create coupons(),       date-ordered, selects all rows in 'productcoupons' table where ProductId's in 'trade' table for this 'InvestorId'
 couponIndex = 0
 q = "select distinct pc.ProductId,pc.Date,pc.Amount*IssuePrice"
 q += " Amount,pc.ccy from productcoupons pc join trade using (productid) join product p using (productid) where InvestorId = "\
@@ -248,7 +235,7 @@ numCoupons = len(coupons)
 
 
 #
-# compute index
+# init
 #
 productBids           = {}
 productAsks           = {}
@@ -283,7 +270,7 @@ for productPrice in productPrices:
                 thisCoupon  = coupons[couponIndex].Amount
                 thisCcy     = coupons[couponIndex].ccy
                 if productCcy[thisPid] != strategyCcy:
-                    thisCoupon *= crossRates[thisPid][previousDate]
+                    thisCoupon *= crossRates[productCrossRate[thisPid]][previousDate]
                 if thisPid not in sumCoupons:
                     sumCoupons[thisPid] = thisCoupon
                 else:
@@ -291,17 +278,18 @@ for productPrice in productPrices:
             couponIndex = couponIndex + 1
         for pid,y in sumCoupons.items():
             cashflow += productUnits[pid] * sumCoupons[pid]
+        # ... and buy some cash units with the coupons
         productUnits[cashPid]  += cashflow / productAsks[cashPid]
 
-        #  calc NAV, doing FX
+        #  calc NAV at MIDs, doing FX
         thisAssetValue  = 0.0
         for pid,pos in productUnits.items():
-            productMid      = (productBids[pid] + productAsks[pid])/2.0
+            productMid = (productBids[pid] + productAsks[pid])/2.0
             if productCcy[pid] != strategyCcy:
-                if previousDate not in crossRates[pid]:
+                if previousDate not in crossRates[productCrossRate[pid]]:
                     print(previousDate,"not in crossRates for",pid)
                     exit(111)
-                productMid *= crossRates[pid][previousDate]
+                productMid *= crossRates[productCrossRate[pid]][previousDate]
             thisAssetValue  += productUnits[pid] * productMid
         if fundUnits <= 0 or thisAssetValue<=0.0:
             thisNav   = 1.0
@@ -313,7 +301,6 @@ for productPrice in productPrices:
             indexValue  = startIndexValue
         else:
             indexValue *= thisNav/oldNav
-
         oldNav            = thisNav
 
         #
@@ -326,9 +313,7 @@ for productPrice in productPrices:
         cursor.execute("insert into indexstrategylevel   (IndexStrategyId,Date,Level)               values "+levelsString+";")
         cnxn.commit()
 
-
-
-        #    ... reflect in currentPositions any trades ON_OR_BEFORE precedingDate
+        #  new trades ... reflect in currentPositions any trades ON_OR_BEFORE precedingDate
         while tradeIndex < numTrades and trades[tradeIndex].Date <= previousDate:
             tradeDate     = trades[tradeIndex].Date
             tradePid      = trades[tradeIndex].ProductId
@@ -345,19 +330,20 @@ for productPrice in productPrices:
             if tradePid not in productUnits:
                 productUnits[tradePid] = 0.0
             if tradePid == cashPid:
+                # cash creates/redeems fund units at oldNav
                 fundUnits += tradeMoney/oldNav
                 if tradeMoney>0.0:
+                    # positive tradeMoney means BUY
                     tradeUnits = tradeMoney/ productAsks[cashPid]
                 else:
+                    # negative tradeMonay means SELL
                     tradeUnits = tradeMoney/ productBids[cashPid]
             else:
+                # positive/negative tradeMoney reduces/increases the cashPid
                 productUnits[cashPid]  -= tradeMoney / productBids[cashPid]
 
             productUnits[tradePid] += tradeUnits
             tradeIndex              = tradeIndex + 1
-
-
-
 
         # init for next time
         # ... zero coupons
@@ -366,29 +352,29 @@ for productPrice in productPrices:
         previousDate      = thisDate
 
 
-    # ... otherwise just record bid/ask for this productId
-    thisPid              = productPrice.ProductId
+    # not a recalc date - just record bid/ask for this productId
+    thisPid  = productPrice.ProductId
     if thisPid not in productMaturityDate or thisDate <= productMaturityDate[thisPid]:
         if productPrice.Bid > 0.0:
             if thisPid in productBids and abs((productBids[thisPid] - productPrice.Bid)/productBids[thisPid]) > 0.3 :
-                print("Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"productBid:",productBids[thisPid])
+                print("Strange price on Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"productBid:",productBids[thisPid])
                 exit(112)
             productBids[thisPid] = productPrice.Bid
 
         if productPrice.Ask > 0.0:
             if thisPid in productAsks and abs((productAsks[thisPid] - productPrice.Ask)/productAsks[thisPid]) > 0.3 :
-                print("Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"productAsk:",productAsks[thisPid])
-                exit()
+                print("Strange price on Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"productAsk:",productAsks[thisPid])
+                exit(113)
             productAsks[thisPid] = productPrice.Ask
 
 
-# finally calc and save moneyWeights
+# finally calc and save moneyWeights using MIDs
 q = "update trade set Position=0 where InvestorId = "+format(userId)+" "
 cursor.execute(q)
 for pid,pos in productUnits.items():
     productMid      = (productBids[pid] + productAsks[pid])/2.0
     if productCcy[pid] != strategyCcy:
-        productMid *= crossRates[pid][previousDate]
+        productMid *= crossRates[productCrossRate[pid]][previousDate]
     thisWeight  = (productUnits[pid] * productMid) / thisAssetValue
     q = "update trade set Position=" + format(thisWeight) + " where ProductId = "+format(pid)+" and InvestorId="+format(userId)+" limit 1"
     cursor.execute(q)
