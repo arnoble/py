@@ -306,7 +306,7 @@ for productPrice in productPrices:
         #
         # save new index value
         #
-        print("Index:",previousDate,indexValue)
+        print("Index:",previousDate,indexValue,thisAssetValue)
         weightsString =  "("+format(strategyId)+",20,'"+format(previousDate)+"',"+format(0)+")"
         levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(indexValue)+")"
         cursor.execute("insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "+weightsString+";")
@@ -314,11 +314,13 @@ for productPrice in productPrices:
         cnxn.commit()
 
         #  new trades ... reflect in currentPositions any trades ON_OR_BEFORE precedingDate
+        traceAssetValue = thisAssetValue
         while tradeIndex < numTrades and trades[tradeIndex].Date <= previousDate:
             tradeDate     = trades[tradeIndex].Date
             tradePid      = trades[tradeIndex].ProductId
             tradeUnits    = trades[tradeIndex].NumUnits
             tradeMoney    = trades[tradeIndex].Money
+            tradePrice    =tradeMoney/tradeUnits
             #        ... trades assumed executed on precedingDate
             #        ... raise ERROR if no pricing
             if tradePid not in productBids or  tradePid not in productAsks:
@@ -335,14 +337,43 @@ for productPrice in productPrices:
                 if tradeMoney>0.0:
                     # positive tradeMoney means BUY
                     tradeUnits = tradeMoney/ productAsks[cashPid]
+                    tradePrice = productAsks[cashPid]
                 else:
-                    # negative tradeMonay means SELL
+                    # negative tradeMoney means SELL
                     tradeUnits = tradeMoney/ productBids[cashPid]
+                    tradePrice = productBids[cashPid]
             else:
                 # positive/negative tradeMoney reduces/increases the cashPid
                 productUnits[cashPid]  -= tradeMoney / productBids[cashPid]
 
             productUnits[tradePid] += tradeUnits
+
+            # maybe check on assetValue
+            if True:
+                someAssetValue  = 0.0
+                for pid,pos in productUnits.items():
+                    productMid = (productBids[pid] + productAsks[pid])/2.0
+                    if productCcy[pid] != strategyCcy:
+                        if previousDate not in crossRates[productCrossRate[pid]]:
+                            print(previousDate,"not in crossRates for",pid)
+                            exit(111)
+                        productMid *= crossRates[productCrossRate[pid]][previousDate]
+                    someAssetValue  += productUnits[pid] * productMid
+                thisMid      = (productBids[tradePid] + productAsks[tradePid])/2.0
+                cashMid      = (productBids[cashPid] + productAsks[cashPid])/2.0
+                thisBidOffer = tradeUnits*(tradePrice-thisMid)
+                assetValueDiff = someAssetValue - traceAssetValue
+                print(tradeDate,
+                      "NAV:",          '{:10.2f}'.format(someAssetValue),
+                      "diff:",         '{:10.2f}'.format(assetValueDiff),
+                      "BO:",           '{:10.2f}'.format(thisBidOffer),
+                      "trading",       '{:10.2f}'.format(tradeUnits),
+                      "of",            '{:4d}'.format(tradePid),
+                      "at",            '{:10.2f}'.format(tradePrice),
+                      "MID:",          '{:10.2f}'.format(thisMid),
+                      "value:",        '{:10.2f}'.format(tradeMoney),
+                      "cash:",         '{:10.2f}'.format(productUnits[cashPid]*cashMid) )
+                traceAssetValue = someAssetValue
             tradeIndex              = tradeIndex + 1
 
         # init for next time
