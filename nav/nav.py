@@ -142,7 +142,7 @@ for x in allMaturities:
 #
 # get any product crossRates
 #
-q = "select ProductId,ccy from product where productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
+q = "select ProductId,ccy,BaseCcy from product where productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
 cursor.execute(q)
 any = cursor.fetchall()
 productCcy             = {}
@@ -150,7 +150,7 @@ crossRates             = {}
 productCrossRate       = {}
 for x in any:
     productCcy[x.ProductId] = x.ccy
-    if x.ccy != strategyCcy:
+    if x.ccy != strategyCcy and x.BaseCcy != strategyCcy:
         crossRateName = x.ccy + strategyCcy
         productCrossRate[x.ProductId] = crossRateName
         if crossRateName not in crossRates:
@@ -269,7 +269,7 @@ for productPrice in productPrices:
             if thisPid in productUnits:
                 thisCoupon  = coupons[couponIndex].Amount
                 thisCcy     = coupons[couponIndex].ccy
-                if productCcy[thisPid] != strategyCcy:
+                if thisPid in productCrossRate:
                     thisCoupon *= crossRates[productCrossRate[thisPid]][previousDate]
                 if thisPid not in sumCoupons:
                     sumCoupons[thisPid] = thisCoupon
@@ -285,7 +285,7 @@ for productPrice in productPrices:
         thisAssetValue  = 0.0
         for pid,pos in productUnits.items():
             productMid = (productBids[pid] + productAsks[pid])/2.0
-            if productCcy[pid] != strategyCcy:
+            if pid in productCrossRate:
                 if previousDate not in crossRates[productCrossRate[pid]]:
                     print(previousDate,"not in crossRates for",pid)
                     exit(111)
@@ -353,7 +353,7 @@ for productPrice in productPrices:
                 someAssetValue  = 0.0
                 for pid,pos in productUnits.items():
                     productMid = (productBids[pid] + productAsks[pid])/2.0
-                    if productCcy[pid] != strategyCcy:
+                    if pid in productCrossRate:
                         if previousDate not in crossRates[productCrossRate[pid]]:
                             print(previousDate,"not in crossRates for",pid)
                             exit(111)
@@ -404,7 +404,7 @@ q = "update trade set Position=0 where InvestorId = "+format(userId)+" "
 cursor.execute(q)
 for pid,pos in productUnits.items():
     productMid      = (productBids[pid] + productAsks[pid])/2.0
-    if productCcy[pid] != strategyCcy:
+    if pid in productCrossRate:
         productMid *= crossRates[productCrossRate[pid]][previousDate]
     thisWeight  = (productUnits[pid] * productMid) / thisAssetValue
     q = "update trade set Position=" + format(thisWeight) + " where ProductId = "+format(pid)+" and InvestorId="+format(userId)+" limit 1"
