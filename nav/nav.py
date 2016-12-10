@@ -320,7 +320,6 @@ for productPrice in productPrices:
             tradePid      = trades[tradeIndex].ProductId
             tradeUnits    = trades[tradeIndex].NumUnits
             tradeMoney    = trades[tradeIndex].Money
-            tradePrice    =tradeMoney/tradeUnits
             #        ... trades assumed executed on precedingDate
             #        ... raise ERROR if no pricing
             if tradePid not in productBids or  tradePid not in productAsks:
@@ -344,6 +343,10 @@ for productPrice in productPrices:
                     tradePrice = productBids[cashPid]
             else:
                 # positive/negative tradeMoney reduces/increases the cashPid
+                if tradeUnits == 0:
+                    print(previousDate,tradePid," cannot have zero #units traded")
+                    exit(112)
+                tradePrice              =  tradeMoney/tradeUnits
                 productUnits[cashPid]  -= tradeMoney / productBids[cashPid]
 
             productUnits[tradePid] += tradeUnits
