@@ -287,9 +287,13 @@ for productPrice in productPrices:
             productMid = (productBids[pid] + productAsks[pid])/2.0
             if pid in productCrossRate:
                 if previousDate not in crossRates[productCrossRate[pid]]:
-                    print(previousDate,"not in crossRates for",pid)
-                    exit(111)
-                productMid *= crossRates[productCrossRate[pid]][previousDate]
+                    lessThanDates = {x for x in crossRates[productCrossRate[pid]] if x< previousDate}
+                    useThisDate   = max(lessThanDates)
+                    print(previousDate,"not in crossRates for",pid,"using rate for ",useThisDate)
+                    # exit(111)
+                else:
+                    useThisDate = previousDate
+                productMid *= crossRates[productCrossRate[pid]][useThisDate]
             thisAssetValue  += productUnits[pid] * productMid
         if fundUnits <= 0 or thisAssetValue<=0.0:
             thisNav   = 1.0
@@ -358,9 +362,13 @@ for productPrice in productPrices:
                     productMid = (productBids[pid] + productAsks[pid])/2.0
                     if pid in productCrossRate:
                         if previousDate not in crossRates[productCrossRate[pid]]:
-                            print(previousDate,"not in crossRates for",pid)
-                            exit(111)
-                        productMid *= crossRates[productCrossRate[pid]][previousDate]
+                            lessThanDates = {x for x in crossRates[productCrossRate[pid]] if x< previousDate}
+                            useThisDate   = max(lessThanDates)
+                            print(previousDate,"not in crossRates for",pid,"using rate for ",useThisDate)
+                            # exit(111)
+                        else:
+                            useThisDate = previousDate
+                        productMid *= crossRates[productCrossRate[pid]][useThisDate]
                     someAssetValue  += productUnits[pid] * productMid
                 thisMid      = (productBids[tradePid] + productAsks[tradePid])/2.0
                 cashMid      = (productBids[cashPid] + productAsks[cashPid])/2.0
