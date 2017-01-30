@@ -369,7 +369,7 @@ for productPrice in productPrices:
 
     # ... otherwise just record bid/ask for this productId
     thisPid              = productPrice.ProductId
-    if thisPid not in productMaturityDate or thisDate <= productMaturityDate[thisPid]:
+    if thisPid not in productMaturityDate or thisDate < productMaturityDate[thisPid]:
         if productPrice.Bid > 0.0:
             #currentBids[thisPid] = productPrice.Bid
             #if thisPid not in previousBids:
