@@ -8,7 +8,7 @@ import datetime
 #    import sys
 
 #
-# date from data    previousDate >= datetime.date(2016,10,03)
+# date from data    previousDate == datetime.date(2016,07,29)
 #
 #
 #
@@ -205,7 +205,11 @@ if len(problemTrades)>0:
 #   ... adding values from prices table if ProductIsaPrice=1
 productPriceIndex = 0
 q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and pp.Date <= '"+format(lastDataDate)+"' and t.ProductIsaPrice=0 "
-q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "
+# for real cash index use this:
+#  q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) "
+# or if cash earns no interest, use this:
+q += "union select p.UnderlyingId ProductId,p.Date,1.0 Bid,1.0 Ask from prices p join trade t on (t.productid=p.underlyingid) "
+q += "where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "
 q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where ProductIsaPrice=0 and investorid=" + format(userId) + ")"
 q += " order by Date,ProductId"
 cursor.execute(q)
@@ -243,11 +247,14 @@ productWeights        = {}
 weightChanges         = {}
 sumCoupons            = {}
 startIndexValue       = 1000.0
+totalCouponCashflow   = 0.0
+couponCashflow        = {}
 fundUnits             = 1.0
 oldNav                = 1.0
 cashPid               = 130
 productUnits          = {}
 productUnits[cashPid] = 0.0;
+productValues         = {}
 indexValue            = startIndexValue
 previousDate          = firstDate
 isFirstDate           = True
@@ -277,7 +284,13 @@ for productPrice in productPrices:
                     sumCoupons[thisPid] += thisCoupon
             couponIndex = couponIndex + 1
         for pid,y in sumCoupons.items():
-            cashflow += productUnits[pid] * sumCoupons[pid]
+            anyValue        = productUnits[pid] * sumCoupons[pid]
+            if pid in couponCashflow:
+                couponCashflow[pid] += anyValue
+            else:
+                couponCashflow[pid]  = anyValue
+            totalCouponCashflow += anyValue
+            cashflow            += anyValue
         # ... and buy some cash units with the coupons
         productUnits[cashPid]  += cashflow / productAsks[cashPid]
 
@@ -294,7 +307,9 @@ for productPrice in productPrices:
                 else:
                     useThisDate = previousDate
                 productMid *= crossRates[productCrossRate[pid]][useThisDate]
-            thisAssetValue  += productUnits[pid] * productMid
+            anyValue           = productUnits[pid] * productMid
+            productValues[pid] = anyValue
+            thisAssetValue    += anyValue
         if fundUnits <= 0 or thisAssetValue<=0.0:
             thisNav   = 1.0
             fundUnits = 1.0
@@ -310,7 +325,11 @@ for productPrice in productPrices:
         #
         # save new index value
         #
-        print("Index:",previousDate,indexValue,thisAssetValue)
+        print("On:",previousDate,
+            "Index:",            '{:10.2f}'.format(indexValue),
+            "Value:",            '{:10.2f}'.format(thisAssetValue),
+            "CouponCashflow:",   '{:10.2f}'.format(totalCouponCashflow),
+            "exCouponCashflow:", '{:10.2f}'.format(thisAssetValue-totalCouponCashflow))
         weightsString =  "("+format(strategyId)+",20,'"+format(previousDate)+"',"+format(0)+")"
         levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(indexValue)+")"
         cursor.execute("insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "+weightsString+";")
