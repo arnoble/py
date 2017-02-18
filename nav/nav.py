@@ -119,7 +119,7 @@ cnxn.commit()
 #
 # get lastdatadate
 #
-q = "select max(LastDataDate) LastDataDate from cashflows "
+q = "select max(Date) LastDataDate from prices where UnderlyingId=1 "
 cursor.execute(q)
 any = cursor.fetchone()
 if not any:
@@ -204,10 +204,11 @@ if len(problemTrades)>0:
 # create productPrices(), date-ordered, selects all rows in 'productprices' table where ProductId's in 'trade' table for this 'InvestorId'
 #   ... adding values from prices table if ProductIsaPrice=1
 productPriceIndex = 0
-q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and pp.Date <= '"+format(lastDataDate)+"' and t.ProductIsaPrice=0 "
-# for real cash index use this:
+q  = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)
+q += "' and pp.Date <= '"+format(lastDataDate)+"' and t.ProductIsaPrice=0 "
+# ChoiceA for real cash index use this:
 #  q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) "
-# or if cash earns no interest, use this:
+# ChoiceB or if cash earns no interest, use this:
 q += "union select p.UnderlyingId ProductId,p.Date,1.0 Bid,1.0 Ask from prices p join trade t on (t.productid=p.underlyingid) "
 q += "where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "
 q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where ProductIsaPrice=0 and investorid=" + format(userId) + ")"
