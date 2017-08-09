@@ -249,6 +249,7 @@ weightChanges         = {}
 sumCoupons            = {}
 startIndexValue       = 1000.0
 totalCouponCashflow   = 0.0
+totalBidOffer         = 0.0
 couponCashflow        = {}
 fundUnits             = 1.0
 oldNav                = 1.0
@@ -326,11 +327,14 @@ for productPrice in productPrices:
         #
         # save new index value
         #
+        cashMid        = (productBids[cashPid] + productAsks[cashPid])/2.0
         print("On:",previousDate,
-            "Index:",            '{:10.2f}'.format(indexValue),
-            "Value:",            '{:10.2f}'.format(thisAssetValue),
-            "CouponCashflow:",   '{:10.2f}'.format(totalCouponCashflow),
-            "exCouponCashflow:", '{:10.2f}'.format(thisAssetValue-totalCouponCashflow))
+            "Index:",                    '{:10.2f}'.format(indexValue),
+            "Value:",                    '{:10.2f}'.format(thisAssetValue),
+            "CouponCashflow:",           '{:10.2f}'.format(totalCouponCashflow),
+            "exCouponCashflow:",         '{:10.2f}'.format(thisAssetValue-totalCouponCashflow),
+            "BidOffer (negative=cost):", '{:10.2f}'.format(totalBidOffer),
+            "CashBalance:",              '{:10.2f}'.format(productUnits[cashPid]*cashMid) )
         weightsString =  "("+format(strategyId)+",20,'"+format(previousDate)+"',"+format(0)+")"
         levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(indexValue)+")"
         cursor.execute("insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "+weightsString+";")
@@ -390,10 +394,11 @@ for productPrice in productPrices:
                             useThisDate = previousDate
                         productMid *= crossRates[productCrossRate[pid]][useThisDate]
                     someAssetValue  += productUnits[pid] * productMid
-                thisMid      = (productBids[tradePid] + productAsks[tradePid])/2.0
-                cashMid      = (productBids[cashPid] + productAsks[cashPid])/2.0
-                thisBidOffer = tradeUnits*(tradePrice-thisMid)
+                thisMid        = (productBids[tradePid] + productAsks[tradePid])/2.0
+                cashMid        = (productBids[cashPid] + productAsks[cashPid])/2.0
+                thisBidOffer   = tradeUnits*(tradePrice-thisMid)
                 assetValueDiff = someAssetValue - traceAssetValue
+                totalBidOffer += thisBidOffer
                 print(tradeDate,
                       "NAV:",          '{:10.2f}'.format(someAssetValue),
                       "diff:",         '{:10.2f}'.format(assetValueDiff),
