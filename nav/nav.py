@@ -80,7 +80,7 @@ class DBconn:
 for a in sys.argv:
     print("Argv:",a)
 if len(sys.argv)<3:
-    print("Usage: loginEmail dbServer debug")
+    print("Usage: loginEmail dbServer <debug>")
     exit()
 userEmail = sys.argv[1]
 dbServer  = sys.argv[2]
@@ -96,7 +96,8 @@ if not userId:
     print("NO user with that email")
     exit()
 userId = userId.UserId
-
+# coupon income file
+couponFile = open("coupons.txt","w")
 
 #
 # strategy static data
@@ -287,12 +288,15 @@ for productPrice in productPrices:
             couponIndex = couponIndex + 1
         for pid,y in sumCoupons.items():
             anyValue        = productUnits[pid] * sumCoupons[pid]
-            if pid in couponCashflow:
-                couponCashflow[pid] += anyValue
-            else:
-                couponCashflow[pid]  = anyValue
-            totalCouponCashflow += anyValue
-            cashflow            += anyValue
+            if anyValue != 0.0:
+                if pid in couponCashflow:
+                    couponCashflow[pid] += anyValue
+                else:
+                    couponCashflow[pid]  = anyValue
+                totalCouponCashflow += anyValue
+                cashflow            += anyValue
+                couponFile.write( "\nOn:" + previousDate.strftime('%Y-%m-%d') + " Coupon of" + '{:10.2f}'.format(sumCoupons[pid]) + " on" + '{:10.2f}'.format(productUnits[pid]) + " units of ProductId " + str(pid) + " CouponCashflow:" + '{:10.2f}'.format(anyValue) + " CumulativeCouponCash:" + '{:10.2f}'.format(totalCouponCashflow))
+
         # ... and buy some cash units with the coupons
         productUnits[cashPid]  += cashflow / productAsks[cashPid]
 
@@ -451,3 +455,4 @@ for pid,pos in productUnits.items():
 cnxn.commit()
 cursor.close()
 cnxn.close()
+couponFile.close()
