@@ -98,6 +98,8 @@ if not userId:
 userId = userId.UserId
 # coupon income file
 couponFile = open("coupons.txt","w")
+# coupon income file
+pAndLFile = open("pAndL.txt","w")
 
 #
 # strategy static data
@@ -177,7 +179,7 @@ for x in any:
 # create trades() in date,Position order so that SELLS come before BUYS
 #
 tradeIndex = 0
-q = "select * from trade where investorid=" + format(userId) + " order by Date,Position,ProductId"
+q = "select * from trade where investorid=" + format(userId) + " order by Date,NumUnits desc,ProductId"
 cursor.execute(q)
 trades = cursor.fetchall()
 if not trades:
@@ -251,6 +253,7 @@ sumCoupons            = {}
 startIndexValue       = 1000.0
 totalCouponCashflow   = 0.0
 totalBidOffer         = 0.0
+totalPandL            = 0.0
 couponCashflow        = {}
 fundUnits             = 1.0
 oldNav                = 1.0
@@ -258,6 +261,7 @@ cashPid               = 130
 productUnits          = {}
 productUnits[cashPid] = 0.0;
 productValues         = {}
+productCosts          = {}
 indexValue            = startIndexValue
 previousDate          = firstDate
 isFirstDate           = True
@@ -332,18 +336,36 @@ for productPrice in productPrices:
         # save new index value
         #
         cashMid        = (productBids[cashPid] + productAsks[cashPid])/2.0
-        print("On:",previousDate,
-            "Index:",                    '{:10.2f}'.format(indexValue),
-            "Value:",                    '{:10.2f}'.format(thisAssetValue),
-            "CouponCashflow:",           '{:10.2f}'.format(totalCouponCashflow),
-            "exCouponCashflow:",         '{:10.2f}'.format(thisAssetValue-totalCouponCashflow),
-            "BidOffer (negative=cost):", '{:10.2f}'.format(totalBidOffer),
-            "CashBalance:",              '{:10.2f}'.format(productUnits[cashPid]*cashMid) )
+        thisString = "On:" + previousDate.strftime('%Y-%m-%d') + " Index:" + '{:10.2f}'.format(indexValue) + " PortfolioValue:" + '{:10.2f}'.format(thisAssetValue) + " CouponCashflow:" + '{:10.2f}'.format(totalCouponCashflow) + " exCouponCashflow:" + '{:10.2f}'.format(thisAssetValue-totalCouponCashflow) + " BidOffer (positive=cost):" + '{:10.2f}'.format(totalBidOffer) + "Cash:" + '{:10.2f}'.format(productUnits[cashPid]*cashMid)
+        print( thisString )
+        pAndLFile.write( "\n" + thisString )
         weightsString =  "("+format(strategyId)+",20,'"+format(previousDate)+"',"+format(0)+")"
         levelsString  =  "("+format(strategyId)+",'"+format(previousDate)+"',"+format(indexValue)+")"
         cursor.execute("insert into indexstrategyweights (IndexStrategyId,Underlyingid,Date,Weight) values "+weightsString+";")
         cursor.execute("insert into indexstrategylevel   (IndexStrategyId,Date,Level)               values "+levelsString+";")
         cnxn.commit()
+
+        # output detailed unrealised pandl
+        totalUnrealisedPandl = 0.0
+        cumulativeProductValue = 0.0
+        for pid,pos in productUnits.items():
+            if pid != cashPid and round(pos,1) != 0.0:
+                thisMid        = (productBids[pid] + productAsks[pid])/2.0
+                cumulativeProductValue += pos * thisMid
+                pAndL = productValues[pid] - productCosts[pid]
+                totalUnrealisedPandl += pAndL
+                pAndLFile.write( "\nUnrealised:" + '{:10.2f}'.format(productUnits[pid]) + " units of ProductId " + str(pid) + " Cost:" + '{:10.2f}'.format(productCosts[pid]) + " Value:" + '{:10.2f}'.format(productValues[pid]) + " UnrealisedPandL:" + '{:10.2f}'.format(pAndL)  + " CumulativeUnrealisedPandL:" + '{:10.2f}'.format(totalUnrealisedPandl))
+        # add final reconciliation
+        valueChangeShouldBe = totalCouponCashflow + totalPandL + totalUnrealisedPandl
+        if abs(1000000 + valueChangeShouldBe - thisAssetValue) > thisAssetValue*0.01 and thisAssetValue != 0.0:
+            anyValue = 1
+        pAndLFile.write( "\nIndex:" + '{:10.2f}'.format(indexValue) + " TotalValue:" + '{:10.2f}'.format(thisAssetValue)  + " ProductValue:" + '{:10.2f}'.format(cumulativeProductValue) + " Cash:" + '{:10.2f}'.format(productUnits[cashPid]*cashMid) + " AllPandL (unrealised+realised+coupons:" + '{:10.2f}'.format(valueChangeShouldBe) + " UnrealisedPandL:" + '{:10.2f}'.format(totalUnrealisedPandl) + " RealisedPandL:" + '{:10.2f}'.format(totalPandL)  + " Coupons:" + '{:10.2f}'.format(totalCouponCashflow)+ "       MEMO:BidOffer (positive=cost):" + '{:10.2f}'.format(totalBidOffer))
+
+
+
+
+
+
 
         #  new trades ... reflect in currentPositions any trades ON_OR_BEFORE precedingDate
         traceAssetValue = thisAssetValue
@@ -362,6 +384,7 @@ for productPrice in productPrices:
             # ... update positions
             if tradePid not in productUnits:
                 productUnits[tradePid] = 0.0
+                productCosts[tradePid] = 0.0
             if tradePid == cashPid:
                 # cash creates/redeems fund units at oldNav
                 fundUnits += tradeMoney/oldNav
@@ -379,7 +402,21 @@ for productPrice in productPrices:
                     print(previousDate,tradePid," cannot have zero #units traded")
                     exit(112)
                 tradePrice              =  tradeMoney/tradeUnits
+                # update cash
                 productUnits[cashPid]  -= tradeMoney / productBids[cashPid]
+
+                # realised pandl
+                if tradeUnits > 0:
+                    productCosts[tradePid] += tradeMoney
+                else:
+                    avgCost = productCosts[tradePid] / productUnits[tradePid]
+                    baseCost = tradeUnits * avgCost
+                    pAndL   = (-tradeMoney) + baseCost
+                    totalPandL += pAndL
+                    productCosts[tradePid]  += baseCost
+                    pAndLFile.write( "\nOn:" + previousDate.strftime('%Y-%m-%d') + " sold" + '{:10.2f}'.format(tradeUnits) + " units of ProductId " + str(pid) + " Cashflow:" + '{:10.2f}'.format(tradeMoney) + " TradePrice:" + '{:10.2f}'.format(tradePrice) + " AverageCost:" + '{:10.2f}'.format(avgCost)  + " PandL:" + '{:10.2f}'.format(pAndL)  + " CumulativePandL:" + '{:10.2f}'.format(totalPandL))
+
+
 
             productUnits[tradePid] += tradeUnits
 
@@ -403,16 +440,11 @@ for productPrice in productPrices:
                 thisBidOffer   = tradeUnits*(tradePrice-thisMid)
                 assetValueDiff = someAssetValue - traceAssetValue
                 totalBidOffer += thisBidOffer
-                print(tradeDate,
-                      "NAV:",          '{:10.2f}'.format(someAssetValue),
-                      "diff:",         '{:10.2f}'.format(assetValueDiff),
-                      "BO:",           '{:10.2f}'.format(thisBidOffer),
-                      "trading",       '{:10.2f}'.format(tradeUnits),
-                      "of",            '{:4d}'.format(tradePid),
-                      "at",            '{:10.2f}'.format(tradePrice),
-                      "MID:",          '{:10.2f}'.format(thisMid),
-                      "value:",        '{:10.2f}'.format(tradeMoney),
-                      "cash:",         '{:10.2f}'.format(productUnits[cashPid]*cashMid) )
+
+                thisString = "TRANSACTION:" + tradeDate.strftime('%Y-%m-%d') + " NAV:" + '{:10.2f}'.format(someAssetValue) + " diff:" + '{:10.2f}'.format(assetValueDiff) + " BO:" + '{:10.2f}'.format(thisBidOffer) + " units:" + '{:10.2f}'.format(tradeUnits) + " of product#" + '{:4d}'.format(tradePid) + " at" + '{:10.2f}'.format(tradePrice) + " MID:" + '{:10.2f}'.format(thisMid) + " value:" + '{:10.2f}'.format(tradeMoney) + " cash:" + '{:10.2f}'.format(productUnits[cashPid]*cashMid)
+                print( thisString )
+                pAndLFile.write( "\n\t" + thisString )
+
                 traceAssetValue = someAssetValue
             tradeIndex              = tradeIndex + 1
 
@@ -439,6 +471,9 @@ for productPrice in productPrices:
             productAsks[thisPid] = productPrice.Ask
 
 
+
+
+
 # finally calc and save moneyWeights using MIDs
 q = "update trade set Position=0 where InvestorId = "+format(userId)+" "
 cursor.execute(q)
@@ -456,3 +491,4 @@ cnxn.commit()
 cursor.close()
 cnxn.close()
 couponFile.close()
+pAndLFile.close()
