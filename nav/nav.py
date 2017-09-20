@@ -457,18 +457,18 @@ for productPrice in productPrices:
 
     # not a recalc date - just record bid/ask for this productId
     thisPid  = productPrice.ProductId
-    if thisPid not in productMaturityDate or thisDate <= productMaturityDate[thisPid]:
+    if (thisPid not in productMaturityDate or thisDate <= productMaturityDate[thisPid]):
         if productPrice.Bid > 0.0:
             if thisPid in productBids and abs((productBids[thisPid] - productPrice.Bid)/productBids[thisPid]) > 0.3 :
-                print("Strange price on Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"productBid:",productBids[thisPid])
-                exit(112)
-            productBids[thisPid] = productPrice.Bid
+                print("IGNORING Strange price on Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"productBid:",productBids[thisPid])
+            else:
+                productBids[thisPid] = productPrice.Bid
 
         if productPrice.Ask > 0.0:
             if thisPid in productAsks and abs((productAsks[thisPid] - productPrice.Ask)/productAsks[thisPid]) > 0.3 :
-                print("Strange price on Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"productAsk:",productAsks[thisPid])
-                exit(113)
-            productAsks[thisPid] = productPrice.Ask
+                print("IGNORING Strange price on Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"productAsk:",productAsks[thisPid])
+            else:
+                productAsks[thisPid] = productPrice.Ask
 
 
 
