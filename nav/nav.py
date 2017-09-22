@@ -96,10 +96,6 @@ if not userId:
     print("NO user with that email")
     exit()
 userId = userId.UserId
-# coupon income file
-couponFile = open("coupons.txt","w")
-# coupon income file
-pAndLFile = open("pAndL.txt","w")
 
 #
 # strategy static data
@@ -113,6 +109,10 @@ if not results:
 
 strategyId  = results.IndexStrategyId
 strategyCcy = results.ccy
+# coupon income file
+couponFile = open("coupons"+str(strategyId)+".txt","w")
+# coupon income file
+pAndLFile = open("pAndL"+str(strategyId)+".txt","w")
 
 cursor.execute("delete from indexstrategylevel   where indexstrategyid="+format(strategyId))
 cursor.execute("delete from indexstrategyweights where indexstrategyid="+format(strategyId))
