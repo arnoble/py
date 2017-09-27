@@ -89,18 +89,11 @@ if len(sys.argv)>3:
     debug = True
 cnxn   = DBconn().connect(dbServer)
 cursor = cnxn.cursor(named_tuple=True)  # or user dictionary=True
-q = "select UserId  from user where email = '"+userEmail+"'"
-cursor.execute(q)
-userId = cursor.fetchone()
-if not userId:
-    print("NO user with that email")
-    exit()
-userId = userId.UserId
 
 #
 # strategy static data
 #
-q = "select u.IndexStrategyId,s.ccy from user u join indexstrategy s using (indexstrategyid) where email='"+userEmail+"'"
+q = "select u.IndexStrategyId,s.ccy,s.InvestorId from user u join indexstrategy s using (indexstrategyid) where email='"+userEmail+"'"
 cursor.execute(q)
 results = cursor.fetchone()
 if not results:
@@ -109,6 +102,7 @@ if not results:
 
 strategyId  = results.IndexStrategyId
 strategyCcy = results.ccy
+userId      = results.InvestorId
 # coupon income file
 couponFile = open("coupons"+str(strategyId)+".txt","w")
 # coupon income file
