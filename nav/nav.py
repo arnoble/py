@@ -476,8 +476,10 @@ for pid,pos in productUnits.items():
     if pid in productCrossRate:
         productMid *= crossRates[productCrossRate[pid]][previousDate]
     thisWeight  = (productUnits[pid] * productMid) / thisAssetValue
-    q = "update trade set Position=" + format(thisWeight) + " where ProductId = "+format(pid)+" and InvestorId="+format(userId)+" limit 1"
-    cursor.execute(q)
+    # ignore small weights as there are sometimes small remainders when a position is unwound - clerical error etc
+    if thisWeight > 0.005:
+        q = "update trade set Position=" + format(thisWeight) + " where ProductId = "+format(pid)+" and InvestorId="+format(userId)+" limit 1"
+        cursor.execute(q)
 
 
 # tidy up
