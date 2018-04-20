@@ -129,7 +129,7 @@ lastDataDate = any.LastDataDate
 # get any product maturity dates
 #
 q  = "select ProductId,DateMatured Date,MaturityPayoff from product where MaturityPayoff!=0 and productid in "
-q += "(select distinct ProductId from trade where investorid=" + format(userId) + ")"
+q += "(select distinct ProductId from trade where investorid=" + format(userId) + " and ProductIsAPrice=0)"
 cursor.execute(q)
 allMaturities = cursor.fetchall()
 productMaturityDate    = {}
@@ -296,7 +296,8 @@ for productPrice in productPrices:
                 couponFile.write( "\nOn:" + previousDate.strftime('%Y-%m-%d') + " Coupon of" + '{:10.2f}'.format(sumCoupons[pid]) + " on" + '{:10.2f}'.format(productUnits[pid]) + " units of ProductId " + str(pid) + " CouponCashflow:" + '{:10.2f}'.format(anyValue) + " CumulativeCouponCash:" + '{:10.2f}'.format(totalCouponCashflow))
 
         # ... and buy some cash units with the coupons
-        productUnits[cashPid]  += cashflow / productAsks[cashPid]
+        if cashflow != 0.0 :
+            productUnits[cashPid]  += cashflow / productAsks[cashPid]
 
         #  calc NAV at MIDs, doing FX
         thisAssetValue  = 0.0
@@ -403,6 +404,9 @@ for productPrice in productPrices:
                 if tradeUnits > 0:
                     productCosts[tradePid] += tradeMoney
                 else:
+                    if tradePid not in productUnits or productUnits[tradePid] == 0.0:
+                        print(previousDate,tradePid," cannot zero #units")
+                        exit(113)
                     avgCost = productCosts[tradePid] / productUnits[tradePid]
                     baseCost = tradeUnits * avgCost
                     pAndL   = (-tradeMoney) + baseCost
