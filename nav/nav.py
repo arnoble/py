@@ -105,8 +105,10 @@ strategyCcy = results.ccy
 userId      = results.InvestorId
 # coupon income file
 couponFile = open("coupons"+str(strategyId)+".txt","w")
-# coupon income file
+# p&l detail file
 pAndLFile = open("pAndL"+str(strategyId)+".txt","w")
+# p&l summary file
+pAndLsummaryFile = open("pAndLsummary"+str(strategyId)+".txt","w")
 
 cursor.execute("delete from indexstrategylevel   where indexstrategyid="+format(strategyId))
 cursor.execute("delete from indexstrategyweights where indexstrategyid="+format(strategyId))
@@ -350,11 +352,15 @@ for productPrice in productPrices:
                 pAndL = productValues[pid] - productCosts[pid]
                 totalUnrealisedPandl += pAndL
                 pAndLFile.write( "\nUnrealised:" + '{:10.2f}'.format(productUnits[pid]) + " units of ProductId " + str(pid) + " Cost:" + '{:10.2f}'.format(productCosts[pid]) + " Value:" + '{:10.2f}'.format(productValues[pid]) + " UnrealisedPandL:" + '{:10.2f}'.format(pAndL)  + " CumulativeUnrealisedPandL:" + '{:10.2f}'.format(totalUnrealisedPandl))
+                if ppCounter == numPprices:
+                    pAndLsummaryFile.write( "\nUnrealised:" + '{:10.2f}'.format(productUnits[pid]) + " units of ProductId " + str(pid) + " Cost:" + '{:10.2f}'.format(productCosts[pid]) + " Value:" + '{:10.2f}'.format(productValues[pid]) + " UnrealisedPandL:" + '{:10.2f}'.format(pAndL)  + " CumulativeUnrealisedPandL:" + '{:10.2f}'.format(totalUnrealisedPandl))
         # add final reconciliation
         valueChangeShouldBe = totalCouponCashflow + totalPandL + totalUnrealisedPandl
         if abs(1000000 + valueChangeShouldBe - thisAssetValue) > thisAssetValue*0.01 and thisAssetValue != 0.0:
             anyValue = 1
         pAndLFile.write( "\nIndex:" + '{:10.2f}'.format(indexValue) + " TotalValue:" + '{:10.2f}'.format(thisAssetValue)  + " ProductValue:" + '{:10.2f}'.format(cumulativeProductValue) + " Cash:" + '{:10.2f}'.format(productUnits[cashPid]*cashMid) + " AllPandL (unrealised+realised+coupons:" + '{:10.2f}'.format(valueChangeShouldBe) + " UnrealisedPandL:" + '{:10.2f}'.format(totalUnrealisedPandl) + " RealisedPandL:" + '{:10.2f}'.format(totalPandL)  + " Coupons:" + '{:10.2f}'.format(totalCouponCashflow)+ "       MEMO:BidOffer (positive=cost):" + '{:10.2f}'.format(totalBidOffer))
+        if ppCounter == numPprices:
+            pAndLsummaryFile.write( "\nIndex:" + '{:10.2f}'.format(indexValue) + " TotalValue:" + '{:10.2f}'.format(thisAssetValue)  + " ProductValue:" + '{:10.2f}'.format(cumulativeProductValue) + " Cash:" + '{:10.2f}'.format(productUnits[cashPid]*cashMid) + " AllPandL (unrealised+realised+coupons:" + '{:10.2f}'.format(valueChangeShouldBe) + " UnrealisedPandL:" + '{:10.2f}'.format(totalUnrealisedPandl) + " RealisedPandL:" + '{:10.2f}'.format(totalPandL)  + " Coupons:" + '{:10.2f}'.format(totalCouponCashflow)+ "       MEMO:BidOffer (positive=cost):" + '{:10.2f}'.format(totalBidOffer))
 
 
 
@@ -382,6 +388,7 @@ for productPrice in productPrices:
                 productCosts[tradePid] = 0.0
             if tradePid == cashPid:
                 # cash creates/redeems fund units at oldNav
+                pAndLsummaryFile.write( "\nCASH TRANSACTION:" + tradeDate.strftime('%Y-%m-%d') + '{:10.2f}'.format(tradeMoney))
                 fundUnits += tradeMoney/oldNav
                 if tradeMoney>0.0:
                     # positive tradeMoney means BUY
@@ -412,7 +419,9 @@ for productPrice in productPrices:
                     pAndL   = (-tradeMoney) + baseCost
                     totalPandL += pAndL
                     productCosts[tradePid]  += baseCost
-                    pAndLFile.write( "\nOn:" + previousDate.strftime('%Y-%m-%d') + " sold" + '{:10.2f}'.format(tradeUnits) + " units of ProductId " + str(pid) + " Cashflow:" + '{:10.2f}'.format(tradeMoney) + " TradePrice:" + '{:10.2f}'.format(tradePrice) + " AverageCost:" + '{:10.2f}'.format(avgCost)  + " PandL:" + '{:10.2f}'.format(pAndL)  + " CumulativePandL:" + '{:10.2f}'.format(totalPandL))
+                    pAndLFile.write( "\nOn:" + previousDate.strftime('%Y-%m-%d') + " sold" + '{:10.2f}'.format(tradeUnits) + " units of ProductId " + str(pid) + " at:" + '{:10.2f}'.format(tradePrice) + " Cashflow:" + '{:10.2f}'.format(tradeMoney) + " TradePrice:" + '{:10.2f}'.format(tradePrice) + " AverageCost:" + '{:10.2f}'.format(avgCost)  + " PandL:" + '{:10.2f}'.format(pAndL)  + " CumulativePandL:" + '{:10.2f}'.format(totalPandL))
+                    pAndLsummaryFile.write( "\nOn:" + previousDate.strftime('%Y-%m-%d') + " sold" + '{:10.2f}'.format(tradeUnits) + " units of ProductId " + str(pid) + " at:" + '{:10.2f}'.format(tradePrice) + " Cashflow:" + '{:10.2f}'.format(tradeMoney) + " TradePrice:" + '{:10.2f}'.format(tradePrice) + " AverageCost:" + '{:10.2f}'.format(avgCost)  + " PandL:" + '{:10.2f}'.format(pAndL)  + " CumulativePandL:" + '{:10.2f}'.format(totalPandL))
+
 
 
 
