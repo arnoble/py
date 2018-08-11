@@ -36,7 +36,7 @@ class DBconn:
         # pyodbc problem: negative doubles are not returned at all! so switched to MySQL odbc.connector
         #  ... http://dev.mysql.com/doc/connector-python/en/
         if dbServer == 'spCloud':
-            return mysql.connector.connect(user='anoble', password='Ragtin_Mor14_Lucian', host='166.63.0.149', database='sp')
+            return mysql.connector.connect(user='anoble', password='Ragtin_Mor14_Lucian', host='198.44.48.250', database='sp')
         else:
             return mysql.connector.connect(user='root', password='ragtinmor', host='localhost', database='sp')
 #####
