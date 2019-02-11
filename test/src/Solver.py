@@ -379,7 +379,8 @@ for productPrice in productPrices:
             #    exit()
             if thisPid in previousBids and abs((previousBids[thisPid] - productPrice.Bid)/previousBids[thisPid]) > 0.3 :
                 print("Date:",previousDate,"productId:",thisPid,"thisBid:",productPrice.Bid,"previousBid:",previousBids[thisPid])
-                exit()
+                if input("continue? y/n") == "n":
+                  exit()
             previousBids[thisPid] = productPrice.Bid
 
         if productPrice.Ask > 0.0:
@@ -391,7 +392,8 @@ for productPrice in productPrices:
             #    exit()
             if thisPid in previousAsks and abs((previousAsks[thisPid] - productPrice.Ask)/previousAsks[thisPid]) > 0.3 :
                 print("Date:",previousDate,"productId:",thisPid,"thisAsk:",productPrice.Ask,"previousAsk:",previousAsks[thisPid])
-                exit()
+                if input("continue? y/n") == "n":
+                  exit()
             previousAsks[thisPid] = productPrice.Ask
     #
     # for matured products, get maturityPayoff and DateMatured
