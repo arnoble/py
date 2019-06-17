@@ -171,7 +171,7 @@ if len(problemTrades)>0:
 productPriceIndex = 0
 q = "select pp.* from productprices pp join trade t using (productid) where InvestorId = "+format(userId)+" and pp.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=0 "
 q += "union select p.UnderlyingId ProductId,p.Date,p.Price Bid,p.Price Ask from prices p join trade t on (t.productid=p.underlyingid) where InvestorId = "+format(userId)+" and p.Date >= '"+format(firstDate)+"' and t.ProductIsaPrice=1 "
-q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
+q += "union select ProductId,DateMatured Date,MaturityPayoff Bid,MaturityPayoff Ask from product where MaturityPayoff!=0 and DateMatured!='0000-00-00'and productid in (select distinct ProductId from trade where investorid=" + format(userId) + ")"
 q += " order by Date,ProductId"
 cursor.execute(q)
 productPrices = cursor.fetchall()
